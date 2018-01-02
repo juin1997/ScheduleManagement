@@ -1,6 +1,13 @@
 package com.example.haoji.dailyActivity;
 
+import android.Manifest;
+import android.app.DatePickerDialog;
+import android.app.Dialog;
+import android.content.Context;
+import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 import android.view.View;
 import android.support.design.widget.NavigationView;
 import android.support.v4.view.GravityCompat;
@@ -11,34 +18,23 @@ import android.support.v7.widget.Toolbar;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.content.Intent;
+import android.view.WindowManager;
+import android.widget.DatePicker;
 import android.widget.RadioGroup;
 import android.widget.TextView;
 import android.widget.Toast;
-import android.os.Handler;
-import android.os.Message;
 import android.provider.MediaStore;
-import android.app.Activity;
-import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
-import android.view.LayoutInflater;
-import android.support.design.widget.NavigationView;
-import com.example.haoji.Button.DragFloatActionButton;
-
-import com.example.haoji.GlobalVariable;
-import com.example.haoji.R;
-import com.example.haoji.userActivity.RegisterActivity;
-import com.example.haoji.userActivity.login1Activity;
-import com.example.haoji.Button.SectorMenuButton;
-import com.example.haoji.Button.ButtonData;
-import com.example.haoji.Button.ButtonEventListener;
-import com.example.haoji.userActivity.showinfoActivity;
-import com.example.haoji.dailyActivity.read_userName;
-import java.util.concurrent.TimeUnit;
-import java.util.ArrayList;
-import java.util.List;
-import java.io.File;
+import android.os.Message;
+import android.os.Handler;
+import android.app.Activity;
 import java.io.IOException;
+import java.io.File;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.concurrent.TimeUnit;
 
 import okhttp3.MediaType;
 import okhttp3.MultipartBody;
@@ -50,26 +46,72 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.json.JSONException;
 
-public class dailyActivity extends AppCompatActivity
-        implements NavigationView.OnNavigationItemSelectedListener {
+
+import com.example.haoji.GlobalVariable;
+import com.example.haoji.R;
+import com.example.haoji.userActivity.login1Activity;
+import com.example.haoji.Button.SectorMenuButton;
+import com.example.haoji.Button.ButtonData;
+import com.example.haoji.Button.ButtonEventListener;
+import com.example.haoji.userActivity.showinfoActivity;
+import com.google.gson.Gson;
+import com.iflytek.cloud.RecognizerResult;
+import com.iflytek.cloud.SpeechConstant;
+import com.iflytek.cloud.SpeechError;
+import com.iflytek.cloud.SpeechUtility;
+import com.iflytek.cloud.ui.RecognizerDialog;
+import com.iflytek.cloud.ui.RecognizerDialogListener;
+
+
+import java.util.ArrayList;
+import java.util.List;
+
+
+public class dailyActivity extends AppCompatActivity implements NavigationView.OnNavigationItemSelectedListener {
     private String imgPath;
     private Handler handler;
+    private int year;
+    private int month;
+    private int day;
+    TextView dateChoose;
+    private TextView DAY;
+    private int year1;
+    private int month1;
+    private int day1;
+    private Calendar c;
+    private String s;
+    private String[] ss;
+    private int y,m,d;
+    final int DATE_PICKER = 0;
     private static final int IMAGE = 1;
-    private GlobalVariable app;
-    private TextView textView;
     OkHttpClient client = new OkHttpClient.Builder()
             .connectTimeout(10, TimeUnit.SECONDS)
             .writeTimeout(10, TimeUnit.SECONDS)
             .readTimeout(10, TimeUnit.SECONDS)
             .build();
+    private GlobalVariable app;
+    private TextView textView;
+    //private Intent intent = new Intent(dailyActivity.this ,newPlan.class);
+    private void st()
+    {
+        String str;
+    }
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.sidebar);
+        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);//修改状态栏
+        //需要设置这个 flag 才能调用 setStatusBarColor 来设置状态栏颜色
+        getWindow().setStatusBarColor(0xFF3F51B5);
+        //申明appid
+        SpeechUtility.createUtility(this, SpeechConstant.APPID + "=5a33bfff");
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
         initBottomSectorMenuButton();
+        DAY  = (TextView) findViewById(R.id.day);
         //Handler处理子进程获取的数据
         handler = new Handler() {
             @Override
@@ -77,27 +119,61 @@ public class dailyActivity extends AppCompatActivity
                 super.handleMessage(msg);
                 Bundle data = msg.getData();
                 String val = data.getString("value");
-                System.out.println(val);
                 Intent intent = new Intent(dailyActivity.this ,newPlan.class);
+                intent.putExtra("from","dailyActivity");
                 intent.putExtra("txt", val);
                 startActivity(intent);
             }
         };
-        //DragFloatActionButton addSchedule = (DragFloatActionButton) findViewById(R.id.addSchedule);
-        //addSchedule.setOnClickListener(new View.OnClickListener() {
-        //@Override
-        //public void onClick(View view) {
-        // Intent intent = new Intent(dailyActivity.this ,newPlan.class);
-        //startActivity(intent);
-        // }
-        // });
+        //会自动跳到当日
+        c = Calendar.getInstance();
+        y = c.get(Calendar.YEAR);
+        m = c.get(Calendar.MONTH);
+        d = c.get(Calendar.DAY_OF_MONTH);
+        Date d1 = c.getTime();
+       /* TextView tv=new TextView();
+        tv.setText(str);*/
+        String str = toString(d1);
+        DAY.setText(str);
+        DAY.setOnClickListener(new View.OnClickListener(){
+            @Override
+            public void onClick(View v){
+
+//                showDialog(DATE_PICKER);
+                    //Calendar c = Calendar.getInstance();
+                    // 直接创建一个DatePickerDialog对话框实例，并将它显示出来
+                    new DatePickerDialog(dailyActivity.this,
+                            // 绑定监听器
+                            new DatePickerDialog.OnDateSetListener() {
+
+                                @Override
+                                public void onDateSet(DatePicker view, int year,
+                                                      int monthOfYear, int dayOfMonth) {
+                                    DAY.setText(year + "-" + (monthOfYear+1)
+                                            + "-" + dayOfMonth);
+                                    y = year;
+                                    m = monthOfYear;
+                                    d = dayOfMonth;
+                                }
+                            }
+                            // 设置初始日期
+                            , c.get(Calendar.YEAR), c.get(Calendar.MONTH), c
+                            .get(Calendar.DAY_OF_MONTH)).show();
+//                datepicker.init(year, month-1, day, new DatePicker.OnDateChangedListener() {
+//                    public void onDateChanged(DatePicker datePicker, int i, int i1, int i2) {
+//                        DAY.setText(i+"-"+i1+"-"+i2);
+//                    }
+//                });
+                OnedayFragmentRecyclerview onedaylist = new  OnedayFragmentRecyclerview(y,m,d);
+                getSupportFragmentManager().beginTransaction().replace(R.id.fg2, onedaylist).commit();
+
+                }
+            });
         FragmentChat chat = new FragmentChat();
         getSupportFragmentManager().beginTransaction().replace(R.id.fg, chat).commit();
-        OnedayFragmentRecyclerview onedaylist = new  OnedayFragmentRecyclerview();
+        OnedayFragmentRecyclerview onedaylist = new  OnedayFragmentRecyclerview(y,m,d);
         getSupportFragmentManager().beginTransaction().replace(R.id.fg2, onedaylist).commit();
         RadioGroup myTabRg = (RadioGroup) findViewById(R.id.tab_menu);
-
-
         DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
         ActionBarDrawerToggle toggle = new ActionBarDrawerToggle(
                 this, drawer, toolbar, R.string.navigation_drawer_open, R.string.navigation_drawer_close);
@@ -113,6 +189,7 @@ public class dailyActivity extends AppCompatActivity
         else
         textView.setText(app.getUserName());
 
+
         myTabRg.setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener() {
 
             @Override
@@ -122,33 +199,154 @@ public class dailyActivity extends AppCompatActivity
                     case R.id.rbOneday:
                         FragmentChat chat = new FragmentChat();
                         getSupportFragmentManager().beginTransaction().replace(R.id.fg, chat).commit();
-                        OnedayFragmentRecyclerview onedaylist = new  OnedayFragmentRecyclerview();
+                        OnedayFragmentRecyclerview onedaylist = new  OnedayFragmentRecyclerview(y,m,d);
                         getSupportFragmentManager().beginTransaction().replace(R.id.fg2, onedaylist).commit();
                         break;
-                    case R.id.rbThreeDay:
-                        FragmentThreeDay threeday=new FragmentThreeDay();
-                        getSupportFragmentManager().beginTransaction().replace(R.id.fg,threeday).commit();
-                        ThreedayFragmentRecyclerview threedaylist = new  ThreedayFragmentRecyclerview();
-                        getSupportFragmentManager().beginTransaction().replace(R.id.fg2, threedaylist).commit();
-                        break;
-                    case R.id.rbWeek:
-                        FragmentWeek week = new FragmentWeek();
-                        getSupportFragmentManager().beginTransaction().replace(R.id.fg,week).commit();
-                        WeekFragmentRecyclerview weeklist = new  WeekFragmentRecyclerview();
-                        getSupportFragmentManager().beginTransaction().replace(R.id.fg2, weeklist).commit();
-                        break;
-
-                    case R.id.rbMonth:
-                        FragmentMonth month = new FragmentMonth();
-                        getSupportFragmentManager().beginTransaction().replace(R.id.fg, month)
-                                .commit();
-                        break;
+//                    case R.id.rbThreeDay:
+//                        FragmentThreeDay threeday=new FragmentThreeDay();
+//                        getSupportFragmentManager().beginTransaction().replace(R.id.fg,threeday).commit();
+//                        ThreedayFragmentRecyclerview threedaylist  new  ThreedayFragmentRecyclerview();
+//                        getSupportFragmentManager().beginTransaction().repla=ce(R.id.fg2, threedaylist).commit();
+//                        break;
+//                    case R.id.rbWeek:
+//                        FragmentWeek week = new FragmentWeek();
+//                        getSupportFragmentManager().beginTransaction().replace(R.id.fg,week).commit();
+//                        WeekFragmentRecyclerview weeklist = new  WeekFragmentRecyclerview();
+//                        getSupportFragmentManager().beginTransaction().replace(R.id.fg2, weeklist).commit();
+//                        break;
+//
+//                    case R.id.rbMonth:
+//                        FragmentMonth month = new FragmentMonth();
+//                        getSupportFragmentManager().beginTransaction().replace(R.id.fg, month)
+//                                .commit();
+//                        break;
                     default:
                         break;
                 }
 
             }
         });
+    }
+
+    @Override
+    public void onStart(){
+        super.onStart();
+        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);//修改状态栏
+        //需要设置这个 flag 才能调用 setStatusBarColor 来设置状态栏颜色
+        getWindow().setStatusBarColor(0xFF3F51B5);
+        //申明appid
+        SpeechUtility.createUtility(this, SpeechConstant.APPID + "=5a33bfff");
+        initBottomSectorMenuButton();
+        DAY  = (TextView) findViewById(R.id.day);
+
+        c = Calendar.getInstance();
+        y = c.get(Calendar.YEAR);
+        m = c.get(Calendar.MONTH);
+        d = c.get(Calendar.DAY_OF_MONTH);
+        Date d1 = c.getTime();
+       /* TextView tv=new TextView();
+        tv.setText(str);*/
+        String str = toString(d1);
+        DAY.setText(str);
+        DAY.setOnClickListener(new View.OnClickListener(){
+            @Override
+            public void onClick(View v){
+
+//                showDialog(DATE_PICKER);
+                //Calendar c = Calendar.getInstance();
+                // 直接创建一个DatePickerDialog对话框实例，并将它显示出来
+                new DatePickerDialog(dailyActivity.this,
+                        // 绑定监听器
+                        new DatePickerDialog.OnDateSetListener() {
+
+                            @Override
+                            public void onDateSet(DatePicker view, int year,
+                                                  int monthOfYear, int dayOfMonth) {
+                                DAY.setText(year + "-" + (monthOfYear+1)
+                                        + "-" + dayOfMonth);
+                                y = year;
+                                m = monthOfYear;
+                                d = dayOfMonth;
+                            }
+                        }
+                        // 设置初始日期
+                        , c.get(Calendar.YEAR), c.get(Calendar.MONTH), c
+                        .get(Calendar.DAY_OF_MONTH)).show();
+//                datepicker.init(year, month-1, day, new DatePicker.OnDateChangedListener() {
+//                    public void onDateChanged(DatePicker datePicker, int i, int i1, int i2) {
+//                        DAY.setText(i+"-"+i1+"-"+i2);
+//                    }
+//                });
+                OnedayFragmentRecyclerview onedaylist = new  OnedayFragmentRecyclerview(y,m,d);
+                getSupportFragmentManager().beginTransaction().replace(R.id.fg2, onedaylist).commit();
+
+            }
+        });
+        FragmentChat chat = new FragmentChat();
+        getSupportFragmentManager().beginTransaction().replace(R.id.fg, chat).commit();
+        OnedayFragmentRecyclerview onedaylist = new  OnedayFragmentRecyclerview(y,m,d);
+        getSupportFragmentManager().beginTransaction().replace(R.id.fg2, onedaylist).commit();
+        RadioGroup myTabRg = (RadioGroup) findViewById(R.id.tab_menu);
+
+        app = (GlobalVariable) getApplication();
+        NavigationView navigationView = (NavigationView) findViewById(R.id.nav_view);
+        navigationView.setNavigationItemSelectedListener(this);
+        View headerView = navigationView.getHeaderView(0);
+        textView = (TextView) headerView.findViewById(R.id.userNameSider);
+        if(app.getState()==0)
+            textView.setText("未登陆");
+        else
+            textView.setText(app.getUserName());
+
+
+        myTabRg.setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener() {
+
+            @Override
+            public void onCheckedChanged(RadioGroup group, int checkedId) {
+                // TODO Auto-generated method stub
+                switch (checkedId) {
+                    case R.id.rbOneday:
+                        FragmentChat chat = new FragmentChat();
+                        getSupportFragmentManager().beginTransaction().replace(R.id.fg, chat).commit();
+                        OnedayFragmentRecyclerview onedaylist = new  OnedayFragmentRecyclerview(y,m,d);
+                        getSupportFragmentManager().beginTransaction().replace(R.id.fg2, onedaylist).commit();
+                        break;
+//                    case R.id.rbThreeDay:
+//                        FragmentThreeDay threeday=new FragmentThreeDay();
+//                        getSupportFragmentManager().beginTransaction().replace(R.id.fg,threeday).commit();
+//                        ThreedayFragmentRecyclerview threedaylist = new  ThreedayFragmentRecyclerview();
+//                        getSupportFragmentManager().beginTransaction().replace(R.id.fg2, threedaylist).commit();
+//                        break;
+//                    case R.id.rbWeek:
+//                        FragmentWeek week = new FragmentWeek();
+//                        getSupportFragmentManager().beginTransaction().replace(R.id.fg,week).commit();
+//                        WeekFragmentRecyclerview weeklist = new  WeekFragmentRecyclerview();
+//                        getSupportFragmentManager().beginTransaction().replace(R.id.fg2, weeklist).commit();
+//                        break;
+//
+//                    case R.id.rbMonth:
+//                        FragmentMonth month = new FragmentMonth();
+//                        getSupportFragmentManager().beginTransaction().replace(R.id.fg, month)
+//                                .commit();
+//                        break;
+                    default:
+                        break;
+                }
+
+            }
+        });
+    }
+
+    //动态申请读取和写入存储器的权限
+    private void requestAllPower() {
+        if (ContextCompat.checkSelfPermission(this,
+                Manifest.permission.READ_EXTERNAL_STORAGE)
+                != PackageManager.PERMISSION_GRANTED) {
+        } else {
+                ActivityCompat.requestPermissions(this,
+                        new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, 1000);
+        }
     }
 
 
@@ -178,6 +376,7 @@ public class dailyActivity extends AppCompatActivity
             int columnIndex = c.getColumnIndex(filePathColumns[0]);
             imgPath = c.getString(columnIndex);
             c.close();
+            //生成发送OCR请求子进程
             new Thread(new Runnable() {
                 @Override
                 public void run() {
@@ -217,15 +416,39 @@ public class dailyActivity extends AppCompatActivity
     }
 
     private void setListener(final SectorMenuButton button) {
+
         button.setButtonEventListener(new ButtonEventListener() {
+
             @Override
+
             public void onButtonClicked(int index) {
                 int buttonid = index;
-                if (buttonid == 3) {
-                    Intent intent = new Intent(dailyActivity.this ,newPlan.class);
-                    startActivity(intent);
+
+                if (buttonid == 1) {
+                    //Intent intent = new Intent(dailyActivity.this ,login1Activity.class);
+                     //intent.putExtra("from","dailyActivity");
+                     initSpeech( dailyActivity.this);
+                    // intent.putExtra("txt",test);
+                     // startActivity(intent);
+                    //initSpeech(getBaseContext());
+                    //Intent intent = new Intent(dailyActivity.this ,newPlan.class);
+                    //intent = getIntent()
+                    //startActivity(intent);
+
+
                 }
-                if (buttonid == 2) {
+
+                if (buttonid == 3) {
+                   Intent intent = new Intent(dailyActivity.this ,newPlan.class);
+                      intent.putExtra("from", "Main");//调用的时候要把"Main"改成其他的就行
+                //    String test="啊啊啊啊2017年05月10日12时18分啊啊啊啊";严格按照这个格式，前导零不能没有且年份长度为4，其他长度为2
+                    // intent.putExtra("txt",test);//通过这个传递数据
+                   startActivity(intent);
+                }
+                //TODO 调用语音识别,语音识别调用newPlan
+
+                if(buttonid == 2){
+                    requestAllPower();
                     //调用相册
                     Intent intent = new Intent(Intent.ACTION_PICK,
                             android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
@@ -233,15 +456,95 @@ public class dailyActivity extends AppCompatActivity
                 }
             }
 
+
+
             @Override
+
             public void onExpand() {
+
+            }
+
+
+
+            @Override
+
+            public void onCollapse() {
+
+            }
+
+        });
+
+    }
+    ///测试代码
+    public void initSpeech2( ) {
+        Intent intent = new Intent(dailyActivity.this ,newPlan.class);
+
+        startActivity(intent);
+    }
+    public void initSpeech( Context context) {
+        final String test;
+        //1.创建RecognizerDialog对象
+        RecognizerDialog mDialog = new RecognizerDialog(context, null);
+        //2.设置accent、language等参数
+        mDialog.setParameter(SpeechConstant.LANGUAGE, "zh_cn");
+        mDialog.setParameter(SpeechConstant.ACCENT, "mandarin");
+        //3.设置回调接口
+        mDialog.setListener(new RecognizerDialogListener() {
+            @Override
+            public void onResult(RecognizerResult recognizerResult, boolean isLast) {
+                if (!isLast) {
+                    //解析语音
+                    Intent intent = new Intent(dailyActivity.this ,newPlan.class);
+                    intent.putExtra("from","dailyActivity");
+                    String test= parseVoice(recognizerResult.getResultString());
+                    intent.putExtra("txt",test);
+                    startActivity(intent);
+                }
             }
 
             @Override
-            public void onCollapse() {
+            public void onError(SpeechError speechError) {
+
             }
         });
+        //4.显示dialog，接收语音输入
+        mDialog.show();
+
     }
+
+    /**
+     * 解析语音json
+     */
+    public String parseVoice(String resultString) {
+        Gson gson = new Gson();
+        Voice voiceBean = gson.fromJson(resultString, Voice.class);
+
+        StringBuffer sb = new StringBuffer();
+        ArrayList<Voice.WSBean> ws = voiceBean.ws;
+        for (Voice.WSBean wsBean : ws) {
+            String word = wsBean.cw.get(0).w;
+            sb.append(word);
+        }
+        return sb.toString();
+    }
+
+    /**
+     * 语音对象封装
+     */
+    public class Voice {
+
+        public ArrayList<WSBean> ws;
+
+        public class WSBean {
+            public ArrayList<CWBean> cw;
+        }
+
+        public class CWBean {
+            public String w;
+        }
+    }
+
+
 
     private void showToast(String text) {
         Toast.makeText(dailyActivity.this, text, Toast.LENGTH_SHORT).show();
@@ -266,6 +569,40 @@ public class dailyActivity extends AppCompatActivity
 
 
 
+//    protected Dialog onCreateDialog(int id){
+//        switch(id){
+//            case DATE_PICKER:
+//                DatePickerDialog.OnDateSetListener dateListener = new DatePickerDialog.OnDateSetListener(){
+//                    @Override
+//                    public void onDateSet(DatePicker view, int _year, int _month, int _day){
+//                        year1 = _year;
+//                        month1 = _month+1;
+//                        day1 = _day;
+//                        DAY.setText(year1+"-"+month1+"-"+day1);
+//                    }
+//                };
+//                return new DatePickerDialog(this,dateListener,year1,month1,day1);
+//
+//
+//        }
+////        app = (GlobalVariable) getApplication();
+////        app = GlobalVariable.getInstance();
+////        app.setDay(day1);
+////        app.setYear(year1);
+////        app.setMonth(month1);
+//        return null;
+//    }
+    public static String toString(Date date) {
+
+        String time;
+        SimpleDateFormat formater = new SimpleDateFormat();
+        formater.applyPattern("yyyy-MM-dd");
+        time = formater.format(date);
+        return time;
+    }
+
+
+
     @SuppressWarnings("StatementWithEmptyBody")
     @Override
     public boolean onNavigationItemSelected(MenuItem item) {
@@ -283,6 +620,8 @@ public class dailyActivity extends AppCompatActivity
             }
 
         } else if (id == R.id.analyse) {
+            Intent intent = new Intent(dailyActivity.this ,pieChartActivity.class);
+            startActivity(intent);
 
         } else if (id == R.id.refresh) {
 
