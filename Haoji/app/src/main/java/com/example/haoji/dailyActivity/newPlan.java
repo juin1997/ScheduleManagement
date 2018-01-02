@@ -5,8 +5,10 @@ import android.app.DatePickerDialog;
 import android.app.Dialog;
 import android.app.TimePickerDialog;
 import android.content.ContentValues;
+import android.content.Intent;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.graphics.Color;
 import android.nfc.Tag;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -25,7 +27,7 @@ import android.widget.TextView;
 import android.widget.TimePicker;
 import android.widget.Toast;
 import android.widget.Toolbar;
-
+import android.view.WindowManager;
 import com.example.haoji.Database;
 import com.example.haoji.R;
 
@@ -39,9 +41,12 @@ public class newPlan extends AppCompatActivity {
     private int day;
     private int hour;
     private int minute;
+    private String editText;
     private String tag;
+    private String from;
     private Database dbhelper;
     private SQLiteDatabase db;
+    private String hearing="";
     final int DATE_PICKER = 0;
     final int TIME_PICKER = 1;
     final int TAG_PICKER = 2;
@@ -49,6 +54,8 @@ public class newPlan extends AppCompatActivity {
     TextView textv_date;
     TextView textv_time;
     Spinner spinner_tag;
+    Spinner spinner_remind;
+    int remind;
     Button bt_confirm;
     public newPlan(){
         index = -1;
@@ -62,9 +69,13 @@ public class newPlan extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.new_plan_edit);
+        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);//修改状态栏
+        //需要设置这个 flag 才能调用 setStatusBarColor 来设置状态栏颜色
+        getWindow().setStatusBarColor(0xFF3F51B5);
 
-        //initialize toolbar
-        //getWindow().addFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
+//        getWindow().addFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION);//修改状态栏
+        //getWindow().setStatusBarColor(Color.TRANSPARENT);//修改状态栏
         android.support.v7.widget.Toolbar toolbar = findViewById(R.id.toolbar);
         toolbar.setTitle("日程编辑");
         setSupportActionBar(toolbar);
@@ -83,6 +94,7 @@ public class newPlan extends AppCompatActivity {
         textv_date = (TextView) findViewById(R.id.new_plan_edit_date);
         textv_time = (TextView) findViewById(R.id.new_plan_edit_time);
         spinner_tag = (Spinner) findViewById(R.id.new_plan_edit_tag);
+        spinner_remind = (Spinner) findViewById(R.id.new_plan_edit_reminder);
         bt_confirm = (Button) findViewById(R.id.new_plan_edit_confirm);
         spinner_tag.setSelection(0, true);
         //Log.d("debug", "b1");
@@ -98,17 +110,40 @@ public class newPlan extends AppCompatActivity {
                 showDialog(TIME_PICKER);
             }
         });
-        tag = "Tag1";//default
+        tag = "未分类";//default
+
+        Intent intent = getIntent();
+        from = intent.getStringExtra("from");
+
+        if(!from.equals("Main")&&!from.equals("Change")) {
+            index = 0;
+            hearing = intent.getStringExtra("txt");
+            Toast.makeText(newPlan.this,hearing.substring(0),Toast.LENGTH_LONG).show();
+        }
+        else if(from.equals("Change")){
+            String s= intent.getStringExtra("txt");
+            index= Integer.parseInt(s);
+        }
         spinner_tag.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 String[] Tags = getResources().getStringArray(R.array.Tags);
                 tag = Tags[position];
-                //Toast.makeText(newPlan.this, "click"+ Tags[position], Toast.LENGTH_LONG).show();
             }
 
             @Override
             public void onNothingSelected(AdapterView<?> parent) {
+
+            }
+        });
+        spinner_remind.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
+                if(i == 1) remind = 1;
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> adapterView) {
 
             }
         });
@@ -122,30 +157,42 @@ public class newPlan extends AppCompatActivity {
                 values.put("day", day);
                 values.put("hour", hour);
                 values.put("minute", minute);
-                values.put("remind", 0);
+                values.put("remind", remind);
                 values.put("tag", tag);
-                if(index==-1){
+                if(index==-1||index==0){
                     db.insert("schedule", null, values);
+                    if(remind == 1){
+                        //alarm
+                    }
                 }
                 else{
                     db.update("schedule", values, "id = ?", new String[]{""+index});
                 }
-                Toast.makeText(newPlan.this, "Success!", Toast.LENGTH_SHORT).show();
+                Toast.makeText(newPlan.this,"Success!",Toast.LENGTH_LONG).show();
                 finish();
             }
         });
 
-        if(index==-1){
+        if(index==-1) {
             //set default date & time
             Calendar c = Calendar.getInstance();
             year = c.get(Calendar.YEAR);
-            month = c.get(Calendar.MONTH)+1;
+            month = c.get(Calendar.MONTH);
             day = c.get(Calendar.DAY_OF_MONTH);
             hour = c.get(Calendar.HOUR);
             minute = c.get(Calendar.MINUTE);
         }
-        else{
-            Cursor cursor = db.rawQuery("select * from schedule where id = "+ index, null);
+        else if(index == 0) {
+            year = Integer.parseInt(hearing.substring(hearing.indexOf("年")-4, hearing.indexOf("年")));
+            month =Integer.parseInt(hearing.substring(hearing.indexOf("月")-2, hearing.indexOf("月")));
+            day =Integer.parseInt(hearing.substring(hearing.indexOf("日")-2, hearing.indexOf("日")));
+            hour =Integer.parseInt(hearing.substring(hearing.indexOf("时")-2, hearing.indexOf("时")));
+            minute =Integer.parseInt(hearing.substring(hearing.indexOf("分")-2, hearing.indexOf("分")));
+            editt_content.setText(hearing.substring(0,hearing.indexOf("年")-4).concat(hearing.substring(hearing.indexOf("分")+1)));
+            month=month-1;
+        }
+        else// if(index != 0){
+        {    Cursor cursor = db.rawQuery("select * from schedule where id = "+ index, null);
             year = cursor.getInt(cursor.getColumnIndex("year"));
             month = cursor.getInt(cursor.getColumnIndex("month"));
             day = cursor.getInt(cursor.getColumnIndex("day"));
@@ -153,9 +200,13 @@ public class newPlan extends AppCompatActivity {
             minute = cursor.getInt(cursor.getColumnIndex("minute"));
             editt_content.setText(cursor.getString(cursor.getColumnIndex("content")));
         }
-        textv_date.setText(year+"年"+month+"月"+day+"日");
+        textv_date.setText(year+"年"+(month+1)+"月"+day+"日");
         textv_time.setText((hour<10?"0":"")+hour+":"+(minute<10?"0":"")+minute);
     }
+
+
+
+
 
     @Override
     protected Dialog onCreateDialog(int id){
@@ -167,7 +218,7 @@ public class newPlan extends AppCompatActivity {
                         year = _year;
                         month = _month;
                         day = _day;
-                        textv_date.setText(year+"年"+month+"月"+day+"日");
+                        textv_date.setText(year+"年"+(month+1)+"月"+day+"日");
                     }
                 };
                 return new DatePickerDialog(this,dateListener,year,month,day);
